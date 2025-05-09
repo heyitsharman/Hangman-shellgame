@@ -1,205 +1,148 @@
 #!/bin/bash
 
 # Linux/Ubuntu-themed words
-linux_words=("ubuntu" "kernel" "bash" "terminal" "root" "sudo" "gnome" "grub" "systemd" "shell" "debian" "fedora" "cron" "ls" "chmod")
+
+linux\_words=("ubuntu" "kernel" "bash" "terminal" "root" "sudo" "gnome" "grub" "systemd" "shell" "debian" "fedora" "cron" "ls" "chmod")
 
 answer=""
 question=""
-num_attempts=6
+num\_attempts=6
 letters=()
 
-hangman_art=(
-"
-   +---+
-   |   |
-       |
-       |
-       |
-       |
-=========
-"
-"
-   +---+
-   |   |
-   O   |
-       |
-       |
-       |
-=========
-"
-"
-   +---+
-   |   |
-   O   |
-   |   |
-       |
-       |
-=========
-"
-"
-   +---+
-   |   |
-   O   |
-  /|   |
-       |
-       |
-=========
-"
-"
-   +---+
-   |   |
-   O   |
-  /|\\  |
-       |
-       |
-=========
-"
-"
-   +---+
-   |   |
-   O   |
-  /|\\  |
-  /    |
-       |
-=========
-"
-"
-   +---+
-   |   |
-   O   |
-  /|\\  |
-  / \\  |
-       |
-=========
-"
-)
+# Menu shown after any task
 
-add_user() {
-    read -p "Enter username to add: " username
-    sudo adduser "$username"
+post\_action\_menu() {
+choice=\$(dialog --stdout --menu "What would you like to do next?" 10 40 2&#x20;
+1 "Return to Main Menu"&#x20;
+2 "Exit to Terminal")
+
+```
+case "$choice" in
+    1) return ;;
+    2) clear; exit ;;
+    *) clear; exit ;;
+esac
+```
+
 }
 
-delete_user() {
-    read -p "Enter username to delete: " username
-    sudo deluser "$username"
+add\_user() {
+username=\$(dialog --stdout --inputbox "Enter username to add:" 8 40)
+\[ -z "\$username" ] && return
+sudo adduser "\$username"
+post\_action\_menu
 }
 
-modify_user() {
-    read -p "Enter existing username: " oldname
-    echo "1. Change username"
-    echo "2. Change password"
-    read -p "Choose an option: " opt
-    if [[ "$opt" == "1" ]]; then
-        read -p "Enter new username: " newname
-        sudo usermod -l "$newname" "$oldname"
-    elif [[ "$opt" == "2" ]]; then
-        sudo passwd "$oldname"
-    else
-        echo "Invalid option"
-    fi
-    sleep 2
+delete\_user() {
+username=\$(dialog --stdout --inputbox "Enter username to delete:" 8 40)
+\[ -z "\$username" ] && return
+sudo deluser "\$username"
+post\_action\_menu
 }
 
-list_users() {
-    echo -e "\nSystem users:"
-    cut -d: -f1 /etc/passwd
-    echo
-    read -p "Press enter to return to menu..."
+modify\_user() {
+oldname=\$(dialog --stdout --inputbox "Enter existing username:" 8 40)
+\[ -z "\$oldname" ] && return
+opt=\$(dialog --stdout --menu "What would you like to modify?" 10 40 2&#x20;
+1 "Change username"&#x20;
+2 "Change password")
+case "\$opt" in
+1\)
+newname=\$(dialog --stdout --inputbox "Enter new username:" 8 40)
+\[ -z "\$newname" ] && return
+sudo usermod -l "\$newname" "\$oldname"
+;;
+2\)
+sudo passwd "\$oldname"
+;;
+\*)
+dialog --msgbox "Invalid option" 6 30 ;;
+esac
+post\_action\_menu
 }
 
-print_hangman() {
-    local idx=$((6 - num_attempts))
-    echo "${hangman_art[$idx]}"
+list\_users() {
+cut -d: -f1 /etc/passwd > /tmp/userlist.txt
+dialog --textbox /tmp/userlist.txt 20 50
+post\_action\_menu
 }
 
-print_question() {
-    print_hangman
-    echo -e "\nWord: $question"
-    echo "Attempts left: $num_attempts"
-    echo "Guessed letters: ${letters[*]}"
+generate\_question() {
+answer="\${linux\_words\[\$RANDOM % \${#linux\_words\[@]}]}"
+question=""
+for (( i=0; i<\${#answer}; i++ )); do
+question+="\_"
+done
+letters=()
+num\_attempts=6
 }
 
-generate_question() {
-    answer="${linux_words[$RANDOM % ${#linux_words[@]}]}"
-    question=""
-    for (( i=0; i<${#answer}; i++ )); do
-        question+="_"
-    done
+update\_question() {
+local guess="\$1"
+local updated=""
+for (( i=0; i<\${#answer}; i++ )); do
+if \[\[ "\${answer:\$i:1}" == "\$guess" ]]; then
+updated+="\$guess"
+else
+updated+="\${question:\$i:1}"
+fi
+done
+question="\$updated"
 }
 
-update_question() {
-    local guess="$1"
-    local updated=""
-    for (( i=0; i<${#answer}; i++ )); do
-        if [[ "${answer:$i:1}" == "$guess" ]]; then
-            updated+="$guess"
-        else
-            updated+="${question:$i:1}"
-        fi
-    done
-    question="$updated"
+play\_hangman() {
+generate\_question
+while \[\[ "\$question" != "\$answer" && \$num\_attempts -gt 0 ]]; do
+status="Word: \$question\nAttempts left: \$num\_attempts\nGuessed: \${letters\[*]}"
+guess=\$(dialog --stdout --inputbox "\$status\n\nEnter a letter:" 12 50)
+\[ -z "\$guess" ] && break
+guess="\${guess,,}"
+if \[\[ ! "\$guess" =\~ ^\[a-z]\$ ]]; then
+dialog --msgbox "Enter a single alphabet letter!" 6 40
+continue
+fi
+if \[\[ "\${letters\[*]}" =\~ "\$guess" ]]; then
+dialog --msgbox "Already guessed!" 6 30
+continue
+fi
+letters+=("\$guess")
+if \[\[ "\$answer" == *"\$guess"* ]]; then
+update\_question "\$guess"
+else
+((num\_attempts--))
+fi
+done
+
+```
+if [[ "$question" == "$answer" ]]; then
+    dialog --msgbox "🎉 You guessed it! The word was '$answer'." 6 50
+else
+    dialog --msgbox "💀 Game Over! The word was '$answer'." 6 50
+fi
+post_action_menu
+```
+
 }
 
-play_hangman() {
-    clear
-    echo "=== Welcome to Linux Hangman ==="
-    answer="${linux_words[$RANDOM % ${#linux_words[@]}]}"
-    generate_question
-    letters=()
-    num_attempts=6
-
-    while [[ "$question" != "$answer" && $num_attempts -gt 0 ]]; do
-        print_question
-        read -p "Guess a letter: " guess
-        guess="${guess,,}"  # lowercase
-        if [[ ! "$guess" =~ ^[a-z]$ ]]; then
-            echo "Enter a single letter!"
-            continue
-        fi
-        if [[ "${letters[*]}" =~ "$guess" ]]; then
-            echo "Already guessed!"
-            continue
-        fi
-        letters+=("$guess")
-
-        if [[ "$answer" == *"$guess"* ]]; then
-            update_question "$guess"
-        else
-            ((num_attempts--))
-        fi
-    done
-
-    print_hangman
-    if [[ "$question" == "$answer" ]]; then
-        echo -e "\n🎉 You guessed it! The word was '$answer'."
-    else
-        echo -e "\n💀 Game Over! The word was '$answer'."
-    fi
-    echo
-    read -p "Press enter to return to menu..."
+main\_menu() {
+while true; do
+choice=\$(dialog --stdout --menu "=== Linux Admin Hangman ===" 15 50 6&#x20;
+1 "Play Hangman"&#x20;
+2 "Add User"&#x20;
+3 "Delete User"&#x20;
+4 "Modify Existing User"&#x20;
+5 "List All Users"&#x20;
+6 "Exit")
+case "\$choice" in
+1\) play\_hangman ;;
+2\) add\_user ;;
+3\) delete\_user ;;
+4\) modify\_user ;;
+5\) list\_users ;;
+6\) clear; exit ;;
+\*) dialog --msgbox "Invalid choice!" 6 30 ;;
+esac
+done
 }
 
-main_menu() {
-    while true; do
-        clear
-        echo "=== Linux Admin Hangman Menu ==="
-        echo "1. Play Hangman"
-        echo "2. Add User"
-        echo "3. Delete User"
-        echo "4. Modify Existing User"
-        echo "5. List All Users"
-        echo "6. Exit"
-        read -p "Choose an option: " choice
-        case "$choice" in
-            1) play_hangman ;;
-            2) add_user ;;
-            3) delete_user ;;
-            4) modify_user ;;
-            5) list_users ;;
-            6) echo "Goodbye!"; exit ;;
-            *) echo "Invalid choice"; sleep 1 ;;
-        esac
-    done
-}
-
-main_menu
+main\_menu
